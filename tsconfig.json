@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    // Type Checking - strict mode for catching errors early
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    // Modules - modern ESM approach
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    // Emit - we use Bun to run, so we don't need to emit JS files
+    "noEmit": true,
+    // Interop
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    // Language and Environment
+    "target": "ESNext",
+    "lib": ["ESNext"],
+    // Skip type checking of declaration files for faster builds
+    "skipLibCheck": true,
+    // Bun-specific
+    "types": ["bun-types"],
+    // Source Maps for debugging
+    "sourceMap": true
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "downloads"]
+}

@@ -1,0 +1,36 @@
+{
+  "name": "amazon-billbot",
+  "version": "0.0.1",
+  "type": "module",
+  "module": "index.ts",
+  "private": true,
+  "description": "Automated Amazon.de invoice downloader for tax filing",
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "dev": "bun --watch src/index.ts",
+    "debug": "bun --inspect src/index.ts",
+    "debug:playwright": "PWDEBUG=1 bun run debug",
+    "codegen": "bunx playwright codegen https://www.amazon.de/gp/css/order-history",
+    "format": "biome format --write .",
+    "lint": "biome lint --write .",
+    "check": "biome check --write .",
+    "type-check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.3.12",
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "playwright": "^1.58.0"
+  },
+  "keywords": [
+    "amazon",
+    "invoice",
+    "automation",
+    "playwright"
+  ]
+}
