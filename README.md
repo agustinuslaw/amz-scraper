@@ -1,21 +1,7 @@
-# amazon-billbot
+# README
 
-Initial project setup:
+Amazon Scraper downloads invoices to Personal Account for tax reasons. Business Account already has bulk download mechanism and don't need this.
 
-```sh
-bun init -y
-```
+This application is secure in that it never stores user credentials. User login and MFA is completely handled by the user manually in the browser. The browser data is persisted in a directory (as per chromium). Thus login is only necessary once (tick Keep user logged in).
 
-To install dependencies:
 
-```sh
-bun install
-```
-
-To run:
-
-```sh
-bun run index.ts
-```
-
-This project was created using `bun init` in bun v1.3.6. [Bun](https://bun.com) is a fast all-in-one JavaScript runtime.

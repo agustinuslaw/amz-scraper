@@ -1,36 +1,35 @@
 {
-  "name": "amazon-billbot",
-  "version": "0.0.1",
+  "name": "amz-scraper",
+  "description": "A scraper for Amazon invoice data using Playwright and TypeScript.",
+  "version": "1.0.0",
   "type": "module",
-  "module": "index.ts",
-  "private": true,
-  "description": "Automated Amazon.de invoice downloader for tax filing",
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
-    "start": "bun run src/index.ts",
-    "dev": "bun --watch src/index.ts",
-    "debug": "bun --inspect src/index.ts",
-    "debug:playwright": "PWDEBUG=1 bun run debug",
-    "codegen": "bunx playwright codegen https://www.amazon.de/gp/css/order-history",
     "format": "biome format --write .",
     "lint": "biome lint --write .",
     "check": "biome check --write .",
-    "type-check": "tsc --noEmit"
-  },
-  "devDependencies": {
-    "@biomejs/biome": "^2.3.12",
-    "@types/bun": "latest"
-  },
-  "peerDependencies": {
-    "typescript": "^5.9.3"
-  },
-  "dependencies": {
-    "dotenv": "^17.2.3",
-    "playwright": "^1.58.0"
+    "type-check": "tsc --noEmit",
+    "start": "tsx --env-file=.env src/index.ts",
+    "dev": "tsx --env-file=.env --watch src/index.ts"
   },
   "keywords": [
     "amazon",
     "invoice",
     "automation",
     "playwright"
-  ]
+  ],
+  "author": "agustinus.lawandy",
+  "license": "ISC",
+  "packageManager": "pnpm@10.28.1+sha512.7d7dbbca9e99447b7c3bf7a73286afaaf6be99251eb9498baefa7d406892f67b879adb3a1d7e687fc4ccc1a388c7175fbaae567a26ab44d1067b54fcb0d6a316",
+  "devDependencies": {
+    "@biomejs/biome": "^2.3.12",
+    "@types/node": "^25.0.10",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "playwright": "^1.58.0"
+  }
 }

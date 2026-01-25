@@ -1,0 +1,28 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+indent_style = space
+indent_size = 2
+
+# Soft guideline only (Biome enforces this strictly)
+max_line_length = 140
+
+# JavaScript / TypeScript
+[*.{js,cjs,mjs,ts,cts,mts,jsx,tsx}]
+indent_style = space
+indent_size = 2
+
+# JSON / config files
+[*.{json,jsonc,yaml,yml}]
+indent_style = space
+indent_size = 2
+
+# Markdown (avoid forced wrapping)
+[*.md]
+trim_trailing_whitespace = false
+max_line_length = off

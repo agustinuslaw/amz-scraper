@@ -1,4 +1,4 @@
-# dependencies (bun install)
+# dependencies 
 node_modules
 
 # output
@@ -27,8 +27,8 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .cache
 *.tsbuildinfo
 
-# IntelliJ based IDEs
-.idea
+# pnpm
+pnpm-lock.yaml
 
 # Finder (MacOS) folder config
 .DS_Store
@@ -38,16 +38,13 @@ Thumbs.db
 downloads/
 browser-data/
 
-# Bun
-.bun/
-bun.lockb
-
 # TypeScript
 *.tsbuildinfo
 
 # Editor
 .vscode/*
 !.vscode/settings.json
+!.vscode/launch.json
 !.vscode/extensions.json
 .idea/
 

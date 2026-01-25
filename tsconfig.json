@@ -16,11 +16,9 @@
     "forceConsistentCasingInFileNames": true,
     // Language and Environment
     "target": "ESNext",
-    "lib": ["ESNext"],
+    "lib": ["ESNext", "DOM"],
     // Skip type checking of declaration files for faster builds
     "skipLibCheck": true,
-    // Bun-specific
-    "types": ["bun-types"],
     // Source Maps for debugging
     "sourceMap": true
   },

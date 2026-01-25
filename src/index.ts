@@ -1,18 +1,19 @@
-import { type Config, getConfig, printConfig } from "./config";
-import { Scraper } from "./scraper";
+import { AmzScBrowser } from "./amz-sc-browser.class";
+import { AmzScConfig } from "./amz-sc-config.class";
+import { AmzScScraper } from "./amz-sc-scraper.class";
 
 /**
  * Main entry point of the application.
  * This is similar to the main() method in Java.
  */
 async function main(): Promise<void> {
-  console.log("Amazon Invoice Scraper");
+  console.log("Amazon Scraper (Invoice Downloader) Starting...");
+  const config: AmzScConfig = AmzScConfig.fromEnv();
 
-  const config: Config = getConfig();
-  printConfig(config);
+  await using browser: AmzScBrowser = await AmzScBrowser.launchPersistent(config);
 
-  const scraper = new Scraper(config);
-  // await scraper.run();
+  const scraper: AmzScScraper = new AmzScScraper(config, browser);
+  await scraper.run();
 }
 
 // Run the main function and handle any errors
