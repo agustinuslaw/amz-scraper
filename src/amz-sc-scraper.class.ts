@@ -2,7 +2,7 @@ import type { ElementHandle, Locator, Page, Response } from "playwright";
 import type { AmzScBrowser } from "./amz-sc-browser.class";
 import type { AmzScConfig } from "./amz-sc-config.class";
 import { AmzScFilePersistence } from "./amz-sc-file-persistence.class";
-import { AmzScOrder, AmzScOrderItem, AmzScYearOrders } from "./amz-sc-order.class";
+import { AmzScOrder, AmzScOrderItem, AmzScYearOrders } from "./model";
 
 const RADIX_DECIMAL: number = 10;
 /**
@@ -19,10 +19,7 @@ export class AmzScScraper {
     if (!isLoggedIn) {
       await this.waitForManualLogin();
     }
-
     await this.collectOrderIdsForYear(this.config.invoiceYear);
-
-    // TODO : Download invoices based on collected order IDs
   }
 
   /**
@@ -78,6 +75,65 @@ export class AmzScScraper {
   }
 
   /**
+   * Navigates to the orders page and downloads invoices.
+   */
+  async collectOrderIdsForYear(invoiceYear: number): Promise<AmzScYearOrders> {
+    const orderCardSelector = ".order-card";
+
+    // goto first page to get total orders
+    let yearOrders: AmzScYearOrders | null = this.files.readYearOrderIdsFromFile(invoiceYear);
+    if (yearOrders?.isComplete) {
+      console.log(
+        `Order IDs for year ${invoiceYear} are already complete. Loaded from file path: ${this.files.getYearOrderIdsFilePath(invoiceYear)}`,
+      );
+      return yearOrders;
+    }
+
+    const startPage: number = yearOrders?.estimatedLastPage || 0;
+    console.log(`Collecting order IDs for year ${invoiceYear} starting from page ${startPage + 1}...`);
+
+    // wait for orders to load
+    await this.gotoOrderYearPage(invoiceYear, startPage);
+    await this.browser.mainPage.waitForSelector(orderCardSelector, { timeout: 30000 });
+
+    const orderYears: number[] = await this.getOrderYears(this.browser.mainPage);
+    console.log(`Available years ${orderYears.join(",")}`);
+
+    const yearTotalOrdersText: string | null = await this.browser.mainPage.locator("span.num-orders").textContent();
+    const yearTotalOrders: number = this.extractInt(yearTotalOrdersText);
+    const yearTotalPages: number = Math.ceil(yearTotalOrders / 10);
+
+    let uniqueOrderIds: string[] = yearOrders?.orderIds ?? [];
+    let uniqueOrderIdsSet = new Set(uniqueOrderIds);
+
+    // amazon page shows 10 orders per page [0,pages)
+    console.log(`Total orders in year ${invoiceYear}: ${yearTotalOrders} across ${yearTotalPages} pages`);
+
+    for (let orderPage = startPage; orderPage < yearTotalPages; orderPage++) {
+      await this.randomSleep(800, 2000);
+
+      console.log(`Collecting order ids in page ${orderPage + 1}/${yearTotalPages}`);
+      await this.gotoOrderYearPage(invoiceYear, orderPage);
+      await this.browser.mainPage.waitForSelector(orderCardSelector, { timeout: 30000 });
+
+      const pageOrderCards: Locator[] = await this.browser.mainPage.locator(orderCardSelector).all();
+      const pageOrderIds: string[] = await this.collectOrderIdsFromPage(pageOrderCards);
+
+      uniqueOrderIdsSet = new Set([...uniqueOrderIdsSet, ...pageOrderIds]);
+      uniqueOrderIds = Array.from(uniqueOrderIdsSet);
+
+      console.log(`Found ${pageOrderIds.length} order IDs in page ${orderPage + 1}/${yearTotalPages}`);
+
+      // save progress after each page
+      yearOrders = new AmzScYearOrders(invoiceYear, yearTotalOrders, uniqueOrderIds);
+      this.files.writeYearOrderIdsToFile(yearOrders);
+    }
+
+    console.log(`Recorded ${uniqueOrderIds.length} IDs for year ${invoiceYear}`);
+    return new AmzScYearOrders(invoiceYear, yearTotalOrders, uniqueOrderIds);
+  }
+
+  /**
    * Helper function to wait for Enter key press.
    */
   async waitForEnter(): Promise<void> {
@@ -105,66 +161,6 @@ export class AmzScScraper {
     const yearTexts: string[] = await page.locator(`#time-filter > option[value^='year-']`).allTextContents();
 
     return yearTexts.map((text) => parseInt(text, RADIX_DECIMAL)).filter((n) => !Number.isNaN(n));
-  }
-
-  /**
-   * Navigates to the orders page and downloads invoices.
-   */
-  async collectOrderIdsForYear(invoiceYear: number): Promise<AmzScYearOrders> {
-    const orderCardSelector = ".order-card";
-
-    // goto first page to get total orders
-    let yearOrders: AmzScYearOrders | null = this.files.readYearOrderIdsFromFile(invoiceYear);
-
-    if (yearOrders?.isComplete) {
-      console.log(
-        `Order IDs for year ${invoiceYear} are already complete. Loaded from file path: ${this.files.getYearOrderIdsFilePath(invoiceYear)}`,
-      );
-      return yearOrders;
-    }
-
-    const startPage: number = yearOrders?.lastPage || 0;
-    console.log(`Collecting order IDs for year ${invoiceYear} starting from page ${startPage + 1}...`);
-
-    // wait for orders to load
-    await this.gotoOrderYearPage(invoiceYear, startPage);
-    await this.browser.mainPage.waitForSelector(orderCardSelector, { timeout: 30000 });
-
-    const orderYears: number[] = await this.getOrderYears(this.browser.mainPage);
-    console.log(`Available years ${orderYears.join(",")}`);
-
-    const yearTotalOrdersText: string | null = await this.browser.mainPage.locator("span.num-orders").textContent();
-    const yearTotalOrders: number = this.extractInt(yearTotalOrdersText);
-    const yearTotalPages: number = Math.ceil(yearTotalOrders / 10);
-
-    let uniqueOrderIds: string[] = yearOrders?.orderIds ?? [];
-    let uniqueOrderIdsSet = new Set(uniqueOrderIds);
-
-    // amazon page shows 10 orders per page [0,pages)
-    console.log(`Total orders in year ${invoiceYear}: ${yearTotalOrders} across ${yearTotalPages} pages`);
-
-    for (let orderPage = startPage; orderPage < yearTotalPages; orderPage++) {
-      await this.randomSleep(200, 1000);
-
-      console.log(`Collecting order ids in page ${orderPage + 1}/${yearTotalPages}`);
-      await this.gotoOrderYearPage(invoiceYear, orderPage);
-      await this.browser.mainPage.waitForSelector(orderCardSelector, { timeout: 30000 });
-
-      const pageOrderCards: Locator[] = await this.browser.mainPage.locator(orderCardSelector).all();
-      const pageOrderIds: string[] = await this.collectOrderIdsFromPage(pageOrderCards);
-
-      uniqueOrderIdsSet = new Set([...uniqueOrderIdsSet, ...pageOrderIds]);
-      uniqueOrderIds = Array.from(uniqueOrderIdsSet);
-
-      console.log(`Found ${pageOrderIds.length} order IDs in page ${orderPage + 1}/${yearTotalPages}`);
-
-      // save progress after each page
-      yearOrders = new AmzScYearOrders(invoiceYear, yearTotalOrders, uniqueOrderIds);
-      this.files.writeYearOrderIdsToFile(yearOrders);
-    }
-
-    console.log(`Recorded ${uniqueOrderIds.length} IDs for year ${invoiceYear}`);
-    return new AmzScYearOrders(invoiceYear, yearTotalOrders, uniqueOrderIds);
   }
 
   async collectOrderIdsFromPage(orderCards: Locator[]): Promise<string[]> {

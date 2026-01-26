@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import type { AmzScConfig } from "./amz-sc-config.class";
-import { AmzScYearOrders } from "./amz-sc-order.class";
+import { AmzScYearOrders } from "./model";
 
 /**
  * Handles file persistence for Amazon order data.
