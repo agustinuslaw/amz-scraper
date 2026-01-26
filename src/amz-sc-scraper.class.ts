@@ -4,15 +4,12 @@ import type { AmzScBrowser } from "./amz-sc-browser.class";
 import type { AmzScConfig } from "./amz-sc-config.class";
 import { AmzScOrder, AmzScOrderItem, AmzScYearOrders } from "./amz-sc-order.class";
 
-const DECIMAL: number = 10;
+const RADIX_DECIMAL: number = 10;
 /**
  * Main class for downloading Amazon invoices.
  */
 export class AmzScScraper {
-  constructor(
-    readonly config: AmzScConfig,
-    readonly browser: AmzScBrowser
-  ) {}
+  constructor(readonly config: AmzScConfig, readonly browser: AmzScBrowser) {}
 
   /**
    * Main execution method that orchestrates the entire process.
@@ -24,6 +21,8 @@ export class AmzScScraper {
     }
 
     await this.collectOrderIdsForYear(this.config.invoiceYear);
+
+    // TODO : Download invoices based on collected order IDs
   }
 
   /**
@@ -125,7 +124,7 @@ export class AmzScScraper {
   private async getOrderYears(page: Page): Promise<number[]> {
     const yearTexts: string[] = await page.locator(`#time-filter > option[value^='year-']`).allTextContents();
 
-    return yearTexts.map((text) => parseInt(text, DECIMAL)).filter((n) => !Number.isNaN(n));
+    return yearTexts.map((text) => parseInt(text, RADIX_DECIMAL)).filter((n) => !Number.isNaN(n));
   }
 
   /**
@@ -139,7 +138,7 @@ export class AmzScScraper {
 
     if (yearOrders?.isComplete) {
       console.log(
-        `Order IDs for year ${invoiceYear} are already complete. Loaded from file path: ${this.getYearOrderIdsFilePath(invoiceYear)}`
+        `Order IDs for year ${invoiceYear} are already complete. Loaded from file path: ${this.getYearOrderIdsFilePath(invoiceYear)}`,
       );
       return yearOrders;
     }
@@ -189,7 +188,7 @@ export class AmzScScraper {
   }
 
   async collectOrderIdsFromPage(orderCards: Locator[]): Promise<string[]> {
-    var orders: string[] = [];
+    const orders: string[] = [];
     for (const orderCard of orderCards) {
       const orderId = await orderCard.locator(".yohtmlc-order-id span[dir]").textContent({ timeout: 500 });
       if (orderId) {
@@ -210,7 +209,7 @@ export class AmzScScraper {
     const orderDate = await this.getTextOrEmpty(orderDetails, "[data-component='orderDate']");
     const orderTotal = await this.getTextOrEmpty(
       orderDetails,
-      "[data-component='chargeSummary'] li:nth-child(6) .od-line-item-row-content"
+      "[data-component='chargeSummary'] li:nth-child(6) .od-line-item-row-content",
     );
 
     const shippingName = await this.getTextOrEmpty(orderDetails, "[data-component='shippingAddress'] li:nth-child(1)");
@@ -239,7 +238,7 @@ export class AmzScScraper {
       orderItems.push(orderItem);
 
       console.log(
-        `ASIN: ${itemAsin}, Merchant: ${merchant}, Qty: ${quantity},  Price: ${unitPrice}, Title: ${itemTitle?.substring(0, 50)}...`
+        `ASIN: ${itemAsin}, Merchant: ${merchant}, Qty: ${quantity},  Price: ${unitPrice}, Title: ${itemTitle?.substring(0, 50)}...`,
       );
     }
 
@@ -253,7 +252,7 @@ export class AmzScScraper {
     await new Promise((resolve) => setTimeout(resolve, delayMs));
   }
 
-  private getRegexGroupOrEmpty(text: string | null | undefined, regex: RegExp, groupIndex: number = 1): string {
+  private getRegexGroupOrEmpty(text: string | null | undefined, regex: RegExp, groupIndex = 1): string {
     const match = text?.match(regex);
     if (match && match.length > groupIndex) {
       return match[groupIndex] ?? "";
@@ -280,6 +279,6 @@ export class AmzScScraper {
   private extractInt(text: string | null): number {
     if (!text) return NaN;
     const cleaned = text.replace(/\D/g, "");
-    return parseInt(cleaned, DECIMAL);
+    return parseInt(cleaned, RADIX_DECIMAL);
   }
 }
