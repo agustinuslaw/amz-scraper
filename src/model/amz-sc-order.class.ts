@@ -1,3 +1,4 @@
+import type { AmzScInvoiceLink } from "./amz-sc-invoice-link.interface";
 import type { AmzScOrderItem } from "./amz-sc-order-item.class";
 
 export class AmzScOrder {
@@ -9,5 +10,6 @@ export class AmzScOrder {
     readonly shippingAddress: string,
     readonly status: string,
     readonly orderItems: AmzScOrderItem[],
+    readonly invoiceUrls: AmzScInvoiceLink[]
   ) {}
 }

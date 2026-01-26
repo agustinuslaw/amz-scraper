@@ -44,7 +44,7 @@ export class AmzScBrowser implements AsyncDisposable, Disposable {
     }
   }
 
-  async reuseOrCreatePage(index: number = 0): Promise<Page> {
+  async reuseOrCreatePage(index = 0): Promise<Page> {
     return this.context.pages()[index] ?? (await this.context.newPage());
   }
 

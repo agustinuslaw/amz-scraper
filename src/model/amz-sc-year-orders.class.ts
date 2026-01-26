@@ -1,5 +1,9 @@
 export class AmzScYearOrders {
-  constructor(readonly year: number, readonly totalOrders: number, readonly orderIds: string[]) {}
+  constructor(
+    readonly year: number,
+    readonly totalOrders: number,
+    readonly orderIds: string[]
+  ) {}
 
   get isComplete(): boolean {
     return this.totalOrders === this.orderIds.length;

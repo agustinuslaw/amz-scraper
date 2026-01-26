@@ -6,6 +6,6 @@ export class AmzScOrderItem {
     readonly merchant: string,
     readonly merchantId: string,
     readonly quantity: number,
-    readonly unitPrice: string,
+    readonly unitPrice: string
   ) {}
 }

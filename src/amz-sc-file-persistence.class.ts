@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import type { AmzScConfig } from "./amz-sc-config.class";
 import { AmzScYearOrders } from "./model";
 
@@ -17,10 +17,10 @@ export class AmzScFilePersistence {
   /**
    * Generates the file path for storing order IDs for a specific year.
    * @param year - The year for which to generate the file path.
-   * @returns The absolute file path in the format `{downloadDir}/order-ids-{year}.json`.
+   * @returns The absolute file path in the format `{downloadDir}/{year}/order-ids-{year}.json`.
    */
   getYearOrderIdsFilePath(year: number): string {
-    return `${this.config.downloadDir}/order-ids-${year}.json`;
+    return `${this.config.downloadDir}/${year}/order-ids-${year}.json`;
   }
 
   /**
@@ -45,8 +45,17 @@ export class AmzScFilePersistence {
    */
   writeYearOrderIdsToFile(yearOrders: AmzScYearOrders): void {
     const filePath = this.getYearOrderIdsFilePath(yearOrders.year);
+    this.ensureDirectoryExistsForPath(filePath);
     const data = JSON.stringify(yearOrders, null, 2);
     writeFileSync(filePath, data, "utf-8");
     console.log(`Wrote order IDs for year ${yearOrders.year} to file: ${filePath}`);
+  }
+
+  ensureDirectoryExistsForPath(filePath: string): void {
+    const dirPath = filePath.substring(0, filePath.lastIndexOf("/"));
+    if (!existsSync(dirPath)) {
+      // Create directory recursively
+      mkdirSync(dirPath, { recursive: true });
+    }
   }
 }

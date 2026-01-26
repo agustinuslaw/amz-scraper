@@ -1,77 +1,26 @@
-import type { ElementHandle, Locator, Page, Response } from "playwright";
+import type { Locator, Page, Response } from "playwright";
 import type { AmzScBrowser } from "./amz-sc-browser.class";
 import type { AmzScConfig } from "./amz-sc-config.class";
-import { AmzScFilePersistence } from "./amz-sc-file-persistence.class";
-import { AmzScOrder, AmzScOrderItem, AmzScYearOrders } from "./model";
+import type { AmzScFilePersistence } from "./amz-sc-file-persistence.class";
+import { type AmzScInvoiceUrl, AmzScOrder, AmzScOrderItem, AmzScYearOrders } from "./model";
+import { randomSleep } from "./util/amz-sc-process.util";
 
 const RADIX_DECIMAL: number = 10;
 /**
  * Main class for downloading Amazon invoices.
  */
 export class AmzScScraper {
-  constructor(readonly config: AmzScConfig, readonly browser: AmzScBrowser, readonly files: AmzScFilePersistence) {}
+  constructor(
+    readonly config: AmzScConfig,
+    readonly browser: AmzScBrowser,
+    readonly files: AmzScFilePersistence
+  ) {}
 
   /**
    * Main execution method that orchestrates the entire process.
    */
   async run(): Promise<void> {
-    const isLoggedIn: boolean = await this.isLoggedIn();
-    if (!isLoggedIn) {
-      await this.waitForManualLogin();
-    }
     await this.collectOrderIdsForYear(this.config.invoiceYear);
-  }
-
-  /**
-   * Checks if the user is logged into Amazon.
-   * Returns true if logged in, false otherwise.
-   */
-  async isLoggedIn(): Promise<boolean> {
-    try {
-      // Navigate to
-      await this.browser.mainPage.goto("https://www.amazon.de", {
-        waitUntil: "domcontentloaded",
-        timeout: 10000,
-      });
-
-      // Check if the account link shows a name (indicates logged in)
-      const accountElement: ElementHandle<HTMLElement | SVGElement> | null =
-        await this.browser.mainPage.$("#nav-link-accountList-nav-line-1");
-      if (!accountElement) return false;
-
-      const text: string | null = await accountElement.textContent();
-      // If it says "Hallo, Anmelden" or similar, user is not logged in
-      if (!text) {
-        console.log("Account element has no text content");
-        return false;
-      }
-      const signInRegex = /anmelden|sign in/i;
-      return !signInRegex.test(text);
-    } catch (error) {
-      console.error("Error checking login status:", error);
-      return false;
-    }
-  }
-
-  /**
-   * Prompts the user to log in manually.
-   * Waits for the user to complete login including MFA.
-   */
-  async waitForManualLogin(): Promise<void> {
-    console.log("\nPlease log in to Amazon in the browser window");
-    console.log("Complete all steps including MFA if required");
-    console.log("Press Enter here when you're logged in and ready to continue...\n");
-
-    // Wait for user to press Enter
-    await this.waitForEnter();
-
-    // Verify login was successful
-    const loggedIn: boolean = await this.isLoggedIn(); // 5 minutes timeout
-    if (!loggedIn) {
-      throw new Error("Login verification failed. Please ensure you're logged in and try again.");
-    }
-
-    console.log("Login verified successfully\n");
   }
 
   /**
@@ -84,7 +33,7 @@ export class AmzScScraper {
     let yearOrders: AmzScYearOrders | null = this.files.readYearOrderIdsFromFile(invoiceYear);
     if (yearOrders?.isComplete) {
       console.log(
-        `Order IDs for year ${invoiceYear} are already complete. Loaded from file path: ${this.files.getYearOrderIdsFilePath(invoiceYear)}`,
+        `Order IDs for year ${invoiceYear} are already complete. Loaded from file path: ${this.files.getYearOrderIdsFilePath(invoiceYear)}`
       );
       return yearOrders;
     }
@@ -110,7 +59,7 @@ export class AmzScScraper {
     console.log(`Total orders in year ${invoiceYear}: ${yearTotalOrders} across ${yearTotalPages} pages`);
 
     for (let orderPage = startPage; orderPage < yearTotalPages; orderPage++) {
-      await this.randomSleep(800, 2000);
+      await randomSleep(800, 2000);
 
       console.log(`Collecting order ids in page ${orderPage + 1}/${yearTotalPages}`);
       await this.gotoOrderYearPage(invoiceYear, orderPage);
@@ -133,17 +82,6 @@ export class AmzScScraper {
     return new AmzScYearOrders(invoiceYear, yearTotalOrders, uniqueOrderIds);
   }
 
-  /**
-   * Helper function to wait for Enter key press.
-   */
-  async waitForEnter(): Promise<void> {
-    return new Promise((resolve) => {
-      process.stdin.once("data", () => {
-        resolve();
-      });
-    });
-  }
-
   private async gotoOrderYearPage(year: number, orderPage: number): Promise<null | Response> {
     const startIndex: number = orderPage * 10;
     const orderYearPageUrl: string = `https://www.amazon.de/gp/your-account/order-history?timeFilter=year-${year}&startIndex=${startIndex}`;
@@ -155,6 +93,12 @@ export class AmzScScraper {
     const orderSummaryUrl: string = `https://www.amazon.de/gp/css/summary/print.html?orderID=${orderId}`;
     console.log(`Navigating to order summary page for order ${orderId}: ${orderSummaryUrl}`);
     return await page.goto(orderSummaryUrl, { waitUntil: "domcontentloaded" });
+  }
+
+  private async gotoOrderInvoicePage(page: Page, orderId: string): Promise<null | Response> {
+    const orderInvoiceUrl: string = `https://www.amazon.de/-/en/your-orders/invoice/popover?orderId=${orderId}`;
+    console.log(`Navigating to order invoice page for order ${orderId}: ${orderInvoiceUrl}`);
+    return await page.goto(orderInvoiceUrl, { waitUntil: "domcontentloaded" });
   }
 
   private async getOrderYears(page: Page): Promise<number[]> {
@@ -185,7 +129,7 @@ export class AmzScScraper {
     const orderDate = await this.getTextOrEmpty(orderDetails, "[data-component='orderDate']");
     const orderTotal = await this.getTextOrEmpty(
       orderDetails,
-      "[data-component='chargeSummary'] li:nth-child(6) .od-line-item-row-content",
+      "[data-component='chargeSummary'] li:nth-child(6) .od-line-item-row-content"
     );
 
     const shippingName = await this.getTextOrEmpty(orderDetails, "[data-component='shippingAddress'] li:nth-child(1)");
@@ -198,9 +142,9 @@ export class AmzScScraper {
     for (const itemGrid of orderItemGrids) {
       const itemTitleLink: Locator = await itemGrid.locator("[data-component='itemTitle'] a");
       const itemTitle = (await itemTitleLink?.textContent())?.trim() ?? "";
-      const itemHref = await itemTitleLink?.getAttribute("href");
+      const itemHref = await itemTitleLink?.getAttribute("href").catch(() => "");
       const itemAsin = this.getRegexGroupOrEmpty(itemHref, /\/dp\/([A-Z0-9]+)/, 1);
-      const merchant = await this.getTextOrEmpty(itemGrid, "[data-component='orderedMerchant'] a");
+      const merchant = await this.getTextOrEmpty(itemGrid, "[data-component='orderedMerchant'] a").catch(() => "");
       const merchantHref = await itemGrid
         .locator("[data-component='orderedMerchant'] a")
         .getAttribute("href", { timeout: 500 })
@@ -214,18 +158,30 @@ export class AmzScScraper {
       orderItems.push(orderItem);
 
       console.log(
-        `ASIN: ${itemAsin}, Merchant: ${merchant}, Qty: ${quantity},  Price: ${unitPrice}, Title: ${itemTitle?.substring(0, 50)}...`,
+        `ASIN: ${itemAsin}, Merchant: ${merchant}, Qty: ${quantity},  Price: ${unitPrice}, Title: ${itemTitle?.substring(0, 50)}...`
       );
     }
 
-    return new AmzScOrder(orderId, orderDate, orderTotal, shippingName, shippingAddress, paymentInstrument, orderItems);
+    const invoiceUrls: AmzScInvoiceUrl[] = await this.getOrderInvoiceUrls(orderId);
+
+    return new AmzScOrder(orderId, orderDate, orderTotal, shippingName, shippingAddress, paymentInstrument, orderItems, invoiceUrls);
   }
 
-  // Helper methods
-  private async randomSleep(lower: number, upper: number): Promise<void> {
-    const delayMs = lower + Math.random() * (upper - lower);
-    console.log(`Sleeping for ${Math.round(delayMs)} ms to mimic human behavior...`);
-    await new Promise((resolve) => setTimeout(resolve, delayMs));
+  async getOrderInvoiceUrls(orderId: string): Promise<AmzScInvoiceUrl[]> {
+    this.gotoOrderInvoicePage(this.browser.mainPage, orderId);
+    await this.browser.mainPage.waitForSelector("[href$=pdf]", { timeout: 10000 });
+    const invoiceLinkLocators: Locator[] = await this.browser.mainPage.locator("[href$=pdf]").all();
+
+    const invoiceUrls: AmzScInvoiceUrl[] = await Promise.all(
+      invoiceLinkLocators.map(async (link, index) => {
+        const invoiceName = await link.textContent({ timeout: 200 });
+        const url = await link.evaluate((el) => (el as HTMLAnchorElement).href, { timeout: 200 });
+        console.log(`Invoice ${invoiceName} URL: ${url}`);
+        return { name: invoiceName || `Invoice-${index + 1}`, url };
+      })
+    );
+
+    return invoiceUrls;
   }
 
   private getRegexGroupOrEmpty(text: string | null | undefined, regex: RegExp, groupIndex = 1): string {
