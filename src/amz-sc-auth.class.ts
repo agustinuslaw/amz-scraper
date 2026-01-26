@@ -2,12 +2,25 @@ import type { AmzScBrowser } from "./amz-sc-browser.class";
 import type { AmzScConfig } from "./amz-sc-config.class";
 import { waitForEnter } from "./util/amz-sc-process.util";
 
+/**
+ * Handles Amazon authentication and login verification.
+ * Manages both automatic login status checks and manual login flows with MFA support.
+ * Uses the persistent browser context to maintain session across runs.
+ */
 export class AmzScAuth {
-  constructor(
-    readonly config: AmzScConfig,
-    readonly browser: AmzScBrowser
-  ) {}
+  /**
+   * Creates a new authentication handler.
+   * @param config - Application configuration for Amazon domain and settings.
+   * @param browser - Browser instance for navigation and session management.
+   */
+  constructor(readonly config: AmzScConfig, readonly browser: AmzScBrowser) {}
 
+  /**
+   * Ensures the user is logged into Amazon.
+   * Checks login status first, and only prompts for manual login if needed.
+   * Safe to call multiple times - skips login flow if already authenticated.
+   * @throws Error if manual login verification fails.
+   */
   async login(): Promise<void> {
     const loggedIn: boolean = await this.isLoggedIn();
     if (loggedIn) {
@@ -19,8 +32,10 @@ export class AmzScAuth {
   }
 
   /**
-   * Checks if the user is logged into Amazon.
-   * Returns true if logged in, false otherwise.
+   * Checks if the user is logged into Amazon by examining the account element.
+   * Navigates to Amazon homepage and looks for the account link text.
+   * If the text contains "anmelden" or "sign in", the user is not logged in.
+   * @returns True if logged in (account name visible), false otherwise.
    */
   async isLoggedIn(): Promise<boolean> {
     try {
@@ -48,8 +63,11 @@ export class AmzScAuth {
   }
 
   /**
-   * Prompts the user to log in manually.
-   * Waits for the user to complete login including MFA.
+   * Prompts the user to log in manually through the browser UI.
+   * Displays instructions and waits for the user to press Enter after logging in.
+   * Verifies the login was successful before returning.
+   * Supports multi-factor authentication (MFA) as the user completes it manually.
+   * @throws Error if login verification fails after the user confirms.
    */
   async waitForManualLogin(): Promise<void> {
     console.log("\nPlease log in to Amazon in the browser window");
