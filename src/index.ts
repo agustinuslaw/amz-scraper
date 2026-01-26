@@ -1,5 +1,6 @@
 import { AmzScBrowser } from "./amz-sc-browser.class";
 import { AmzScConfig } from "./amz-sc-config.class";
+import { AmzScFilePersistence } from "./amz-sc-file-persistence.class";
 import { AmzScScraper } from "./amz-sc-scraper.class";
 
 /**
@@ -11,8 +12,8 @@ async function main(): Promise<void> {
   const config: AmzScConfig = AmzScConfig.fromEnv();
 
   await using browser: AmzScBrowser = await AmzScBrowser.launchPersistent(config);
-
-  const scraper: AmzScScraper = new AmzScScraper(config, browser);
+  const filePersistence = new AmzScFilePersistence(config);
+  const scraper: AmzScScraper = new AmzScScraper(config, browser, filePersistence);
   await scraper.run();
 }
 

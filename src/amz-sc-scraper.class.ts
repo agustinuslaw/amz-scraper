@@ -1,7 +1,7 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import type { ElementHandle, Locator, Page, Response } from "playwright";
 import type { AmzScBrowser } from "./amz-sc-browser.class";
 import type { AmzScConfig } from "./amz-sc-config.class";
+import { AmzScFilePersistence } from "./amz-sc-file-persistence.class";
 import { AmzScOrder, AmzScOrderItem, AmzScYearOrders } from "./amz-sc-order.class";
 
 const RADIX_DECIMAL: number = 10;
@@ -9,7 +9,7 @@ const RADIX_DECIMAL: number = 10;
  * Main class for downloading Amazon invoices.
  */
 export class AmzScScraper {
-  constructor(readonly config: AmzScConfig, readonly browser: AmzScBrowser) {}
+  constructor(readonly config: AmzScConfig, readonly browser: AmzScBrowser, readonly files: AmzScFilePersistence) {}
 
   /**
    * Main execution method that orchestrates the entire process.
@@ -77,26 +77,6 @@ export class AmzScScraper {
     console.log("Login verified successfully\n");
   }
 
-  getYearOrderIdsFilePath(year: number): string {
-    return `${this.config.downloadDir}/order-ids-${year}.json`;
-  }
-
-  readYearOrderIdsFromFile(year: number): AmzScYearOrders | null {
-    const filePath = this.getYearOrderIdsFilePath(year);
-    if (!existsSync(filePath)) {
-      return null;
-    }
-    const data = JSON.parse(readFileSync(filePath, "utf-8"));
-    return new AmzScYearOrders(data.year, data.totalOrders, data.orderIds);
-  }
-
-  writeYearOrderIdsToFile(yearOrders: AmzScYearOrders): void {
-    const filePath = this.getYearOrderIdsFilePath(yearOrders.year);
-    const data = JSON.stringify(yearOrders, null, 2);
-    writeFileSync(filePath, data, "utf-8");
-    console.log(`Wrote order IDs for year ${yearOrders.year} to file: ${filePath}`);
-  }
-
   /**
    * Helper function to wait for Enter key press.
    */
@@ -134,11 +114,11 @@ export class AmzScScraper {
     const orderCardSelector = ".order-card";
 
     // goto first page to get total orders
-    let yearOrders: AmzScYearOrders | null = this.readYearOrderIdsFromFile(invoiceYear);
+    let yearOrders: AmzScYearOrders | null = this.files.readYearOrderIdsFromFile(invoiceYear);
 
     if (yearOrders?.isComplete) {
       console.log(
-        `Order IDs for year ${invoiceYear} are already complete. Loaded from file path: ${this.getYearOrderIdsFilePath(invoiceYear)}`,
+        `Order IDs for year ${invoiceYear} are already complete. Loaded from file path: ${this.files.getYearOrderIdsFilePath(invoiceYear)}`,
       );
       return yearOrders;
     }
@@ -180,7 +160,7 @@ export class AmzScScraper {
 
       // save progress after each page
       yearOrders = new AmzScYearOrders(invoiceYear, yearTotalOrders, uniqueOrderIds);
-      this.writeYearOrderIdsToFile(yearOrders);
+      this.files.writeYearOrderIdsToFile(yearOrders);
     }
 
     console.log(`Recorded ${uniqueOrderIds.length} IDs for year ${invoiceYear}`);
