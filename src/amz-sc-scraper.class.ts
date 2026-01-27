@@ -2,8 +2,8 @@ import type { Locator, Page, Response } from "playwright";
 import type { AmzScBrowser } from "./amz-sc-browser.class";
 import type { AmzScConfig } from "./amz-sc-config.class";
 import type { AmzScFilePersistence } from "./amz-sc-file-persistence.class";
+import { randomSleep } from "./amz-sc-process.util";
 import { type AmzScInvoiceLink, type AmzScOrder, type AmzScOrderItem, AmzScYearOrders } from "./model";
-import { randomSleep } from "./util/amz-sc-process.util";
 
 const RADIX_DECIMAL: number = 10;
 /**
