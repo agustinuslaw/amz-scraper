@@ -45,8 +45,8 @@ export class AmzScBrowser implements AsyncDisposable, Disposable {
         acceptDownloads: true,
         locale: "en-US",
         viewport: { width: 1280, height: 720 },
-        slowMo: 100,
-        timeout: 60000,
+        slowMo: 500,
+        timeout: 20000,
         args: ["--disable-blink-features=AutomationControlled"],
       });
       console.log("Browser launched with persistent context");

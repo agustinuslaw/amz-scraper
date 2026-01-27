@@ -2,8 +2,8 @@ import { AmzScAuth } from "./amz-sc-auth.class";
 import { AmzScBrowser } from "./amz-sc-browser.class";
 import { AmzScConfig } from "./amz-sc-config.class";
 import { AmzScFilePersistence } from "./amz-sc-file-persistence.class";
-import { waitForEnter } from "./amz-sc-process.util";
 import { AmzScScraper } from "./amz-sc-scraper.class";
+import { waitForEnter } from "./util/amz-sc-process.util";
 
 /**
  * Main entry point of the application.
@@ -23,7 +23,7 @@ async function main(): Promise<void> {
   await scraper.run();
 
   // Wait for user to press Enter
-  console.log("Press Enter here to stop the application...");
+  console.log("Press Enter here to stop the application and close the browser");
   await waitForEnter();
 }
 

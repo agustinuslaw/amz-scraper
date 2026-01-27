@@ -21,5 +21,5 @@ export interface AmzScOrder {
   /** List of items in this order. */
   readonly orderItems: AmzScOrderItem[];
   /** Links to downloadable invoice PDFs. */
-  readonly invoiceUrls: AmzScLink[];
+  readonly links: AmzScLink[];
 }

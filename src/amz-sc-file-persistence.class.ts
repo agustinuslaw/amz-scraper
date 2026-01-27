@@ -1,7 +1,8 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import type { AmzScConfig } from "./amz-sc-config.class";
 import type { AmzScOrder } from "./model";
-import { AmzScYearOrders } from "./model";
+import { AmzScYearOrderIds } from "./model";
+import { appendUniqueOrder } from "./util/amz-sc-model.util";
 
 /**
  * Handles file persistence for Amazon order data.
@@ -30,13 +31,13 @@ export class AmzScFilePersistence {
    * @param year - The year for which to read order IDs.
    * @returns The year orders data if the file exists, or `null` if no saved data is found.
    */
-  readYearOrderIdsFromFile(year: number): AmzScYearOrders | null {
+  readYearOrderIdsFromFile(year: number): AmzScYearOrderIds | null {
     const filePath = this.getYearOrderIdsFilePath(year);
     if (!existsSync(filePath)) {
       return null;
     }
     const data = JSON.parse(readFileSync(filePath, "utf-8"));
-    return new AmzScYearOrders(data.year, data.totalOrders, data.orderIds);
+    return new AmzScYearOrderIds(data.year, data.totalOrders, data.orderIds);
   }
 
   /**
@@ -44,7 +45,7 @@ export class AmzScFilePersistence {
    * Called after each page is scraped to save progress incrementally.
    * @param yearOrders - The year orders data to persist, including year, total count, and collected order IDs.
    */
-  writeYearOrderIdsToFile(yearOrders: AmzScYearOrders): void {
+  writeYearOrderIdsToFile(yearOrders: AmzScYearOrderIds): void {
     const filePath = this.getYearOrderIdsFilePath(yearOrders.year);
     this.ensureDirectoryExistsForPath(filePath);
     const data = JSON.stringify(yearOrders, null, 2);
@@ -79,13 +80,13 @@ export class AmzScFilePersistence {
    * @param year - The year for which to read order details.
    * @returns Array of order details if the file exists, or `null` if no saved data is found.
    */
-  readYearOrderDetailsFromFile(year: number): AmzScOrder[] | null {
+  readYearOrderDetailsFromFile(year: number): AmzScOrder[] {
     const filePath = this.getYearOrderDetailsFilePath(year);
     if (!existsSync(filePath)) {
-      return null;
+      return [];
     }
     const data = JSON.parse(readFileSync(filePath, "utf-8"));
-    return data as AmzScOrder[];
+    return (data as AmzScOrder[]) ?? [];
   }
 
   /**
@@ -100,36 +101,5 @@ export class AmzScFilePersistence {
     const data = JSON.stringify(orders, null, 2);
     writeFileSync(filePath, data, "utf-8");
     console.log(`Wrote ${orders.length} order details for year ${year} to file: ${filePath}`);
-  }
-
-  /**
-   * Appends a single order to the existing order details file.
-   * Creates the file if it doesn't exist.
-   * @param year - The year for which to append the order.
-   * @param order - The order to append.
-   */
-  appendOrderDetailToFile(year: number, order: AmzScOrder): void {
-    const existingOrders = this.readYearOrderDetailsFromFile(year) ?? [];
-
-    // Avoid duplicates by checking if order already exists
-    const orderExists = existingOrders.some((o) => o.id === order.id);
-    if (orderExists) {
-      console.log(`Order ${order.id} already exists in file, skipping append.`);
-      return;
-    }
-
-    existingOrders.push(order);
-    this.writeYearOrderDetailsToFile(year, existingOrders);
-  }
-
-  /**
-   * Gets the set of order IDs that have already been scraped for details.
-   * Useful for resuming order detail collection.
-   * @param year - The year to check.
-   * @returns Set of order IDs that have been scraped.
-   */
-  getScrapedOrderIds(year: number): Set<string> {
-    const orders = this.readYearOrderDetailsFromFile(year) ?? [];
-    return new Set(orders.map((o) => o.id));
   }
 }

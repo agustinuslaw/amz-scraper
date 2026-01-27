@@ -1,4 +1,4 @@
-export class AmzScYearOrders {
+export class AmzScYearOrderIds {
   constructor(
     readonly year: number,
     readonly totalOrders: number,

@@ -1,6 +1,6 @@
 import type { AmzScBrowser } from "./amz-sc-browser.class";
 import type { AmzScConfig } from "./amz-sc-config.class";
-import { waitForEnter } from "./amz-sc-process.util";
+import { waitForEnter } from "./util/amz-sc-process.util";
 
 /**
  * Handles Amazon authentication and login verification.
@@ -13,7 +13,10 @@ export class AmzScAuth {
    * @param config - Application configuration for Amazon domain and settings.
    * @param browser - Browser instance for navigation and session management.
    */
-  constructor(readonly config: AmzScConfig, readonly browser: AmzScBrowser) {}
+  constructor(
+    readonly config: AmzScConfig,
+    readonly browser: AmzScBrowser
+  ) {}
 
   /**
    * Ensures the user is logged into Amazon.
