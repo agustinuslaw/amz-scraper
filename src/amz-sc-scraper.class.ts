@@ -21,8 +21,22 @@ export class AmzScScraper {
    * Main execution method that orchestrates the entire process.
    */
   async run(): Promise<void> {
-    const yearOrders = await this.collectOrderIdsForYear(this.config.invoiceYear);
-    await this.collectOrderDetailsForYear(yearOrders);
+    const invoiceYears: number[] = [];
+    if (this.config.invoiceYear) {
+      console.log(`Scraping for only year: ${this.config.invoiceYear}`);
+      invoiceYears.push(this.config.invoiceYear);
+    } else {
+      this.gotoOrderHistoryPage();
+      const availableYears: number[] = await this.getAvailableOrderYears(this.browser.mainPage);
+      console.log(`Invoice year is not specified. Scrape for all: ${availableYears}`);
+      invoiceYears.push(...availableYears);
+    }
+
+    for (const year of invoiceYears) {
+      console.log(`Start process for: ${year}`);
+      const yearOrders = await this.collectOrderIdsForYear(year);
+      await this.collectOrderDetailsForYear(yearOrders);
+    }
   }
 
   /**
@@ -34,9 +48,8 @@ export class AmzScScraper {
     // goto first page to get total orders
     let yearOrders: AmzScYearOrderIds | null = this.files.readYearOrderIdsFromFile(invoiceYear);
     if (yearOrders?.isComplete) {
-      console.log(
-        `Order IDs for year ${invoiceYear} are already complete. Loaded from file path: ${this.files.getYearOrderIdsFilePath(invoiceYear)}`
-      );
+      const filepath = this.files.getYearOrderIdsFilePath(invoiceYear);
+      console.log(`Order IDs for year ${invoiceYear} are already complete. See: ${filepath}`);
       return yearOrders;
     }
 
@@ -44,10 +57,10 @@ export class AmzScScraper {
     console.log(`Collecting order IDs for year ${invoiceYear} starting from page ${startPage + 1}...`);
 
     // wait for orders to load
-    await this.gotoOrderYearPage(invoiceYear, startPage);
+    await this.gotoOrderHistoryForYearAndIndexPage(invoiceYear, startPage);
     await this.browser.mainPage.waitForSelector(orderCardSelector, { timeout: 30000 });
 
-    const orderYears: number[] = await this.getOrderYears(this.browser.mainPage);
+    const orderYears: number[] = await this.getAvailableOrderYears(this.browser.mainPage);
     console.log(`Available years ${orderYears.join(",")}`);
 
     const yearTotalOrdersText: string | null = await this.browser.mainPage.locator("span.num-orders").textContent();
@@ -64,7 +77,7 @@ export class AmzScScraper {
       await randomSleep(800, 2000);
 
       console.log(`Collecting order ids in page ${orderPage + 1}/${yearTotalPages}`);
-      await this.gotoOrderYearPage(invoiceYear, orderPage);
+      await this.gotoOrderHistoryForYearAndIndexPage(invoiceYear, orderPage);
       await this.browser.mainPage.waitForSelector(orderCardSelector, { timeout: 30000 });
 
       const pageOrderCards: Locator[] = await this.browser.mainPage.locator(orderCardSelector).all();
@@ -84,7 +97,13 @@ export class AmzScScraper {
     return new AmzScYearOrderIds(invoiceYear, yearTotalOrders, uniqueOrderIds);
   }
 
-  async gotoOrderYearPage(year: number, orderPage: number): Promise<null | Response> {
+  async gotoOrderHistoryPage(): Promise<null | Response> {
+    const orderYearPageUrl: string = `https://www.amazon.de/gp/your-account/order-history`;
+    console.log(`Navigating to order history page : ${orderYearPageUrl}`);
+    return await this.browser.mainPage.goto(orderYearPageUrl, { waitUntil: "domcontentloaded" });
+  }
+
+  async gotoOrderHistoryForYearAndIndexPage(year: number, orderPage: number): Promise<null | Response> {
     const startIndex: number = orderPage * 10;
     const orderYearPageUrl: string = `https://www.amazon.de/gp/your-account/order-history?timeFilter=year-${year}&startIndex=${startIndex}`;
     console.log(`Navigating to orders for year ${year}, page ${orderPage + 1}: ${orderYearPageUrl}`);
@@ -103,9 +122,8 @@ export class AmzScScraper {
     return await page.goto(orderInvoiceUrl, { waitUntil: "domcontentloaded" });
   }
 
-  async getOrderYears(page: Page): Promise<number[]> {
+  async getAvailableOrderYears(page: Page): Promise<number[]> {
     const yearTexts: string[] = await page.locator(`#time-filter > option[value^='year-']`).allTextContents();
-
     return yearTexts.map((text) => parseInt(text, RADIX_DECIMAL)).filter((n) => !Number.isNaN(n));
   }
 
