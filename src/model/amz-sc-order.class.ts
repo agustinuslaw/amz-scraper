@@ -18,8 +18,7 @@ export interface AmzScOrder {
   readonly shippingAddress: string;
   /** Order/payment status. */
   readonly paymentInstrument: string;
+  readonly detailsUrl: string;
   /** List of items in this order. */
   readonly orderItems: AmzScOrderItem[];
-  /** Links to downloadable invoice PDFs. */
-  readonly links: AmzScLink[];
 }

@@ -2,7 +2,7 @@ import { resolve } from "node:path";
 
 export class AmzScConfig {
   constructor(
-    readonly invoiceYear: number,
+    readonly invoiceYear: number | null,
     readonly downloadDir: string,
     readonly headless: boolean,
     readonly userDataDir: string
@@ -12,7 +12,7 @@ export class AmzScConfig {
     const { AMZSC_INVOICE_YEAR, AMZSC_DOWNLOAD_DIR, AMZSC_HEADLESS, AMZSC_USER_DATA_DIR } = process.env;
 
     // Parse optional fields with sensible defaults
-    const invoiceYear = AMZSC_INVOICE_YEAR ? Number.parseInt(AMZSC_INVOICE_YEAR, 10) : new Date().getFullYear();
+    const invoiceYear = AMZSC_INVOICE_YEAR ? Number.parseInt(AMZSC_INVOICE_YEAR, 10) : null;
     const downloadDir = resolve(AMZSC_DOWNLOAD_DIR || "./downloads");
     const headless = AMZSC_HEADLESS?.toLowerCase() === "true";
     const userDataDir = resolve(AMZSC_USER_DATA_DIR || "./browser-data");

@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import type { Locator, Page, Response } from "playwright";
 import type { AmzScBrowser } from "./amz-sc-browser.class";
 import type { AmzScConfig } from "./amz-sc-config.class";
@@ -110,7 +111,7 @@ export class AmzScScraper {
     return await this.browser.mainPage.goto(orderYearPageUrl, { waitUntil: "domcontentloaded" });
   }
 
-  async gotoOrderSummaryPage(page: Page, orderId: string): Promise<null | Response> {
+  async gotoOrderSummaryPrintPage(page: Page, orderId: string): Promise<null | Response> {
     const orderSummaryUrl: string = `https://www.amazon.de/gp/css/summary/print.html?orderID=${orderId}`;
     console.log(`Navigating to order summary page for order ${orderId}: ${orderSummaryUrl}`);
     return await page.goto(orderSummaryUrl, { waitUntil: "domcontentloaded" });
@@ -120,6 +121,18 @@ export class AmzScScraper {
     const orderInvoiceUrl: string = `https://www.amazon.de/-/en/your-orders/invoice/popover?orderId=${orderId}`;
     console.log(`Navigating to order invoice page for order ${orderId}: ${orderInvoiceUrl}`);
     return await page.goto(orderInvoiceUrl, { waitUntil: "domcontentloaded" });
+  }
+
+  getOrderSummaryPrintUrl(orderId: string): string {
+    return `https://www.amazon.de/gp/css/summary/print.html?orderID=${orderId}`;
+  }
+
+  getOrderInvoiceUrl(orderId: string): string {
+    return `https://www.amazon.de/-/en/your-orders/invoice/popover?orderId=${orderId}`;
+  }
+
+  getOrderDetailsUrl(orderId: string): string {
+    return `https://www.amazon.de/your-orders/order-details?orderID=${orderId}`;
   }
 
   async getAvailableOrderYears(page: Page): Promise<number[]> {
@@ -155,10 +168,11 @@ export class AmzScScraper {
 
       await randomSleep(800, 2000);
 
-      this.gotoOrderSummaryPage(page, orderId);
+      this.gotoOrderSummaryPrintPage(page, orderId);
       const order: AmzScOrder = await this.getOrderDetails(page, orderId);
 
       this.gotoOrderInvoicePage(page, orderId);
+      // const links: AmzScLink[] = await this.getLinks(page);
       await this.downloadInvoices(page, order);
 
       appendOrder(orderDetails, order);
@@ -221,8 +235,7 @@ export class AmzScScraper {
       );
     }
 
-    this.gotoOrderInvoicePage(page, orderId);
-    const links: AmzScLink[] = await this.getLinks(page);
+    const detailsUrl = this.getOrderDetailsUrl(orderId);
 
     const orderDetail: AmzScOrder = {
       id: orderId,
@@ -231,8 +244,8 @@ export class AmzScScraper {
       shippingName,
       shippingAddress,
       paymentInstrument,
+      detailsUrl,
       orderItems,
-      links,
     };
 
     return orderDetail;
@@ -263,23 +276,36 @@ export class AmzScScraper {
     const pdfLinks = await page.locator("[href$=pdf]").all();
 
     const orderId = order.id;
+
+    if (!order.date) {
+      console.log(`Order ${order.id} has no date, download invoice skipped`);
+      return;
+    }
     const date = new Date(order.date);
+    const year = date.getFullYear();
+
     const isoString = date.toISOString();
     const isoDate = isoString.split("T")[0];
-    const year = date.getFullYear();
+
     const cost = order.totalAmount;
 
     // sequential in between download operations
     for (const link of pdfLinks) {
       const name = (await link.textContent({ timeout: 200 })) ?? "Invoice";
       const nameFormatted = name.toLowerCase().replaceAll(" ", "_");
+      const filePath = `${this.config.downloadDir}/${year}/${isoDate}_amazon_${orderId}_${nameFormatted}_${cost}.pdf`;
+      if (existsSync(filePath)) {
+        console.log(`Skip download existing file: ${filePath}`);
+        continue;
+      }
+
       const downloadPromise = page.waitForEvent("download");
       await link.click({
         button: "left",
         modifiers: ["Alt"],
       });
       const download = await downloadPromise;
-      await download.saveAs(`${this.config.downloadDir}/${year}/${isoDate}_amazon_${orderId}_${nameFormatted}_${cost}.pdf`);
+      await download.saveAs(filePath);
     }
   }
 
