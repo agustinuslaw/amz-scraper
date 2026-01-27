@@ -27,7 +27,7 @@ export class AmzScScraper {
       console.log(`Scraping for only year: ${this.config.invoiceYear}`);
       invoiceYears.push(this.config.invoiceYear);
     } else {
-      this.gotoOrderHistoryPage();
+      await this.gotoOrderHistoryPage();
       const availableYears: number[] = await this.getAvailableOrderYears(this.browser.mainPage);
       console.log(`Invoice year is not specified. Scrape for all: ${availableYears}`);
       invoiceYears.push(...availableYears);
@@ -291,6 +291,7 @@ export class AmzScScraper {
 
     // sequential in between download operations
     for (const link of pdfLinks) {
+      await randomSleep(100, 600);
       const name = (await link.textContent({ timeout: 200 })) ?? "Invoice";
       const nameFormatted = name.toLowerCase().replaceAll(" ", "_");
       const filePath = `${this.config.downloadDir}/${year}/${isoDate}_amazon_${orderId}_${nameFormatted}_${cost}.pdf`;
