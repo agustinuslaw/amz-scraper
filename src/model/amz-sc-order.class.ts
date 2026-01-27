@@ -1,4 +1,4 @@
-import type { AmzScInvoiceLink } from "./amz-sc-invoice-link.interface";
+import type { AmzScLink } from "./amz-sc-link.interface";
 import type { AmzScOrderItem } from "./amz-sc-order-item.class";
 
 /**
@@ -21,5 +21,5 @@ export interface AmzScOrder {
   /** List of items in this order. */
   readonly orderItems: AmzScOrderItem[];
   /** Links to downloadable invoice PDFs. */
-  readonly invoiceUrls: AmzScInvoiceLink[];
+  readonly invoiceUrls: AmzScLink[];
 }

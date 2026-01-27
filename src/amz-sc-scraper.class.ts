@@ -3,14 +3,18 @@ import type { AmzScBrowser } from "./amz-sc-browser.class";
 import type { AmzScConfig } from "./amz-sc-config.class";
 import type { AmzScFilePersistence } from "./amz-sc-file-persistence.class";
 import { randomSleep } from "./amz-sc-process.util";
-import { type AmzScInvoiceLink, type AmzScOrder, type AmzScOrderItem, AmzScYearOrders } from "./model";
+import { type AmzScLink, type AmzScOrder, type AmzScOrderItem, AmzScYearOrders } from "./model";
 
 const RADIX_DECIMAL: number = 10;
 /**
  * Main class for downloading Amazon invoices.
  */
 export class AmzScScraper {
-  constructor(readonly config: AmzScConfig, readonly browser: AmzScBrowser, readonly files: AmzScFilePersistence) {}
+  constructor(
+    readonly config: AmzScConfig,
+    readonly browser: AmzScBrowser,
+    readonly files: AmzScFilePersistence
+  ) {}
 
   /**
    * Main execution method that orchestrates the entire process.
@@ -31,7 +35,7 @@ export class AmzScScraper {
     let yearOrders: AmzScYearOrders | null = this.files.readYearOrderIdsFromFile(invoiceYear);
     if (yearOrders?.isComplete) {
       console.log(
-        `Order IDs for year ${invoiceYear} are already complete. Loaded from file path: ${this.files.getYearOrderIdsFilePath(invoiceYear)}`,
+        `Order IDs for year ${invoiceYear} are already complete. Loaded from file path: ${this.files.getYearOrderIdsFilePath(invoiceYear)}`
       );
       return yearOrders;
     }
@@ -121,7 +125,7 @@ export class AmzScScraper {
     const scrapedOrderIds: Set<string> = this.files.getScrapedOrderIds(yearOrders.year);
 
     console.log(
-      `Collecting order details for year ${yearOrders.year}. ${scrapedOrderIds.size} orders already scraped, ${yearOrders.orderIds.length} total orders.`,
+      `Collecting order details for year ${yearOrders.year}. ${scrapedOrderIds.size} orders already scraped, ${yearOrders.orderIds.length} total orders.`
     );
 
     for (const orderId of yearOrders.orderIds) {
@@ -155,7 +159,7 @@ export class AmzScScraper {
     const orderDate = await this.getTextOrEmpty(orderDetails, "[data-component='orderDate']");
     const totalAmount = await this.getTextOrEmpty(
       orderDetails,
-      "[data-component='chargeSummary'] li:nth-child(6) .od-line-item-row-content",
+      "[data-component='chargeSummary'] li:nth-child(6) .od-line-item-row-content"
     );
 
     const shippingName = await this.getTextOrEmpty(orderDetails, "[data-component='shippingAddress'] li:nth-child(1)");
@@ -192,11 +196,11 @@ export class AmzScScraper {
       orderItems.push(orderItem);
 
       console.log(
-        `ASIN: ${itemAsin}, Merchant: ${merchant}, Qty: ${quantity},  Price: ${unitPrice}, Title: ${itemTitle?.substring(0, 50)}...`,
+        `ASIN: ${itemAsin}, Merchant: ${merchant}, Qty: ${quantity},  Price: ${unitPrice}, Title: ${itemTitle?.substring(0, 50)}...`
       );
     }
 
-    const invoiceUrls: AmzScInvoiceLink[] = await this.getOrderInvoiceUrls(orderId);
+    const invoiceUrls: AmzScLink[] = await this.getOrderInvoiceUrls(orderId);
 
     return {
       id: orderId,
@@ -210,18 +214,21 @@ export class AmzScScraper {
     };
   }
 
-  async getOrderInvoiceUrls(orderId: string): Promise<AmzScInvoiceLink[]> {
+  async getOrderInvoiceUrls(orderId: string): Promise<AmzScLink[]> {
     this.gotoOrderInvoicePage(this.browser.mainPage, orderId);
-    await this.browser.mainPage.waitForSelector("[href$=pdf]", { timeout: 10000 });
-    const invoiceLinkLocators: Locator[] = await this.browser.mainPage.locator("[href$=pdf]").all();
+    await this.browser.mainPage.waitForSelector("[href]", { timeout: 10000 });
+    const invoiceLinkLocators: Locator[] = await this.browser.mainPage
+      .locator("[href$=pdf]")
+      .all()
+      .catch(() => []);
 
-    const invoiceUrls: AmzScInvoiceLink[] = await Promise.all(
+    const invoiceUrls: AmzScLink[] = await Promise.all(
       invoiceLinkLocators.map(async (link, index) => {
         const invoiceName = await link.textContent({ timeout: 200 });
         const url = await link.evaluate((el) => (el as HTMLAnchorElement).href, { timeout: 200 });
         console.log(`Invoice ${invoiceName} URL: ${url}`);
         return { name: invoiceName || `Invoice-${index + 1}`, url };
-      }),
+      })
     );
 
     return invoiceUrls;
