@@ -1,4 +1,4 @@
-# dependencies 
+# dependencies
 node_modules
 
 # output
@@ -37,6 +37,7 @@ Thumbs.db
 # Personal Data
 downloads/
 browser-data/
+amazon/
 
 # TypeScript
 *.tsbuildinfo

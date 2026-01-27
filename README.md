@@ -1,7 +1,41 @@
-# README
+# Amazon Scraper
 
-Amazon Scraper downloads invoices to Personal Account for tax reasons. Business Account already has bulk download mechanism and don't need this.
+A tool for downloading invoices from Amazon Personal Accounts for tax purposes. Business Accounts already include bulk download functionality and do not require this tool.
 
-This application is secure in that it never stores user credentials. User login and MFA is completely handled by the user manually in the browser. The browser data is persisted in a directory (as per chromium). Thus login is only necessary once (tick Keep user logged in).
+## Security
 
+This application does not store user credentials. Authentication and MFA are handled manually by the user through the browser. Browser data persists in a local directory (Chromium profile), enabling persistent login sessions when "Keep me signed in" is selected.
 
+## Prerequisites
+
+- Node.js (version specified in `.node-version`)
+- pnpm
+- Version manager: fnm + corepack OR volta
+
+## Installation
+
+### Using Volta
+
+```sh
+volta install pnpm
+```
+
+### Using fnm + corepack
+
+```sh
+corepack enable
+corepack prepare pnpm@latest --activate
+```
+
+### Setup
+
+```sh
+pnpm install
+pnpm exec playwright install
+```
+
+## Usage
+
+```sh
+pnpm start
+```
