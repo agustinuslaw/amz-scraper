@@ -13,7 +13,10 @@ export class AmzScAuth {
    * @param config - Application configuration for Amazon domain and settings.
    * @param browser - Browser instance for navigation and session management.
    */
-  constructor(readonly config: AmzScConfig, readonly browser: AmzScBrowser) {}
+  constructor(
+    readonly config: AmzScConfig,
+    readonly browser: AmzScBrowser
+  ) {}
 
   /**
    * Ensures the user is logged into Amazon.

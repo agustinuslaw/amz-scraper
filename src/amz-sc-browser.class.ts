@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync } from "node:fs";
-import { type BrowserContext, type Page, chromium } from "playwright";
+import { type BrowserContext, chromium, type Page } from "playwright";
 import type { AmzScConfig } from "./amz-sc-config.class";
 
 /**
@@ -14,7 +14,10 @@ export class AmzScBrowser implements AsyncDisposable, Disposable {
    * @param context - The persistent browser context that maintains session data.
    * @param mainPage - The main page instance for primary navigation and scraping.
    */
-  private constructor(readonly context: BrowserContext, readonly mainPage: Page) {}
+  private constructor(
+    readonly context: BrowserContext,
+    readonly mainPage: Page
+  ) {}
 
   /**
    * Launches a persistent Chromium browser that saves cookies and session data.

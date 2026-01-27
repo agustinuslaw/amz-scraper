@@ -2,7 +2,7 @@ import type { Locator, Page, Response } from "playwright";
 import type { AmzScBrowser } from "./amz-sc-browser.class";
 import type { AmzScConfig } from "./amz-sc-config.class";
 import type { AmzScFilePersistence } from "./amz-sc-file-persistence.class";
-import { type AmzScInvoiceUrl, AmzScOrder, AmzScOrderItem, AmzScYearOrders } from "./model";
+import { type AmzScInvoiceLink, type AmzScOrder, type AmzScOrderItem, AmzScYearOrders } from "./model";
 import { randomSleep } from "./util/amz-sc-process.util";
 
 const RADIX_DECIMAL: number = 10;
@@ -10,17 +10,15 @@ const RADIX_DECIMAL: number = 10;
  * Main class for downloading Amazon invoices.
  */
 export class AmzScScraper {
-  constructor(
-    readonly config: AmzScConfig,
-    readonly browser: AmzScBrowser,
-    readonly files: AmzScFilePersistence
-  ) {}
+  constructor(readonly config: AmzScConfig, readonly browser: AmzScBrowser, readonly files: AmzScFilePersistence) {}
 
   /**
    * Main execution method that orchestrates the entire process.
    */
   async run(): Promise<void> {
-    await this.collectOrderIdsForYear(this.config.invoiceYear);
+    const yearOrders = await this.collectOrderIdsForYear(this.config.invoiceYear);
+
+    await this.collectOrderDetailsForYear(yearOrders);
   }
 
   /**
@@ -33,7 +31,7 @@ export class AmzScScraper {
     let yearOrders: AmzScYearOrders | null = this.files.readYearOrderIdsFromFile(invoiceYear);
     if (yearOrders?.isComplete) {
       console.log(
-        `Order IDs for year ${invoiceYear} are already complete. Loaded from file path: ${this.files.getYearOrderIdsFilePath(invoiceYear)}`
+        `Order IDs for year ${invoiceYear} are already complete. Loaded from file path: ${this.files.getYearOrderIdsFilePath(invoiceYear)}`,
       );
       return yearOrders;
     }
@@ -118,6 +116,34 @@ export class AmzScScraper {
     return orders;
   }
 
+  async collectOrderDetailsForYear(yearOrders: AmzScYearOrders): Promise<AmzScOrder[]> {
+    const orderDetails: AmzScOrder[] = [];
+    const scrapedOrderIds: Set<string> = this.files.getScrapedOrderIds(yearOrders.year);
+
+    console.log(
+      `Collecting order details for year ${yearOrders.year}. ${scrapedOrderIds.size} orders already scraped, ${yearOrders.orderIds.length} total orders.`,
+    );
+
+    for (const orderId of yearOrders.orderIds) {
+      if (scrapedOrderIds.has(orderId)) {
+        console.log(`Order ${orderId} already scraped, skipping.`);
+        continue;
+      }
+
+      await randomSleep(800, 2000);
+
+      console.log(`Collecting details for order ${orderId}...`);
+      const orderDetail: AmzScOrder = await this.getOrderDetails(orderId);
+      orderDetails.push(orderDetail);
+
+      // save progress after each order
+      this.files.appendOrderDetailToFile(yearOrders.year, orderDetail);
+    }
+
+    console.log(`Collected details for ${orderDetails.length} orders in year ${yearOrders.year}.`);
+    return orderDetails;
+  }
+
   async getOrderDetails(orderId: string): Promise<AmzScOrder> {
     this.gotoOrderSummaryPage(this.browser.mainPage, orderId);
     await this.browser.mainPage.waitForSelector("#orderDetails", { timeout: 10000 });
@@ -127,9 +153,9 @@ export class AmzScScraper {
 
     const paymentInstrument = await this.getTextOrEmpty(orderDetails, "[data-testid='payment-instrument']");
     const orderDate = await this.getTextOrEmpty(orderDetails, "[data-component='orderDate']");
-    const orderTotal = await this.getTextOrEmpty(
+    const totalAmount = await this.getTextOrEmpty(
       orderDetails,
-      "[data-component='chargeSummary'] li:nth-child(6) .od-line-item-row-content"
+      "[data-component='chargeSummary'] li:nth-child(6) .od-line-item-row-content",
     );
 
     const shippingName = await this.getTextOrEmpty(orderDetails, "[data-component='shippingAddress'] li:nth-child(1)");
@@ -153,32 +179,49 @@ export class AmzScScraper {
       const quantity = await this.getTextOrDefault(itemGrid, "[data-component='quantity']", "1");
       const unitPrice = await this.getTextOrEmpty(itemGrid, "[data-component='unitPrice'] .a-offscreen");
 
-      const orderItem = new AmzScOrderItem(orderId, itemTitle, itemAsin, merchant, merchantId, this.extractInt(quantity), unitPrice);
+      const orderItem: AmzScOrderItem = {
+        orderId,
+        title: itemTitle,
+        asin: itemAsin,
+        merchant,
+        merchantId,
+        quantity: this.extractInt(quantity),
+        unitPrice,
+      };
 
       orderItems.push(orderItem);
 
       console.log(
-        `ASIN: ${itemAsin}, Merchant: ${merchant}, Qty: ${quantity},  Price: ${unitPrice}, Title: ${itemTitle?.substring(0, 50)}...`
+        `ASIN: ${itemAsin}, Merchant: ${merchant}, Qty: ${quantity},  Price: ${unitPrice}, Title: ${itemTitle?.substring(0, 50)}...`,
       );
     }
 
-    const invoiceUrls: AmzScInvoiceUrl[] = await this.getOrderInvoiceUrls(orderId);
+    const invoiceUrls: AmzScInvoiceLink[] = await this.getOrderInvoiceUrls(orderId);
 
-    return new AmzScOrder(orderId, orderDate, orderTotal, shippingName, shippingAddress, paymentInstrument, orderItems, invoiceUrls);
+    return {
+      id: orderId,
+      date: orderDate,
+      totalAmount,
+      shippingName,
+      shippingAddress,
+      paymentInstrument,
+      orderItems,
+      invoiceUrls,
+    };
   }
 
-  async getOrderInvoiceUrls(orderId: string): Promise<AmzScInvoiceUrl[]> {
+  async getOrderInvoiceUrls(orderId: string): Promise<AmzScInvoiceLink[]> {
     this.gotoOrderInvoicePage(this.browser.mainPage, orderId);
     await this.browser.mainPage.waitForSelector("[href$=pdf]", { timeout: 10000 });
     const invoiceLinkLocators: Locator[] = await this.browser.mainPage.locator("[href$=pdf]").all();
 
-    const invoiceUrls: AmzScInvoiceUrl[] = await Promise.all(
+    const invoiceUrls: AmzScInvoiceLink[] = await Promise.all(
       invoiceLinkLocators.map(async (link, index) => {
         const invoiceName = await link.textContent({ timeout: 200 });
         const url = await link.evaluate((el) => (el as HTMLAnchorElement).href, { timeout: 200 });
         console.log(`Invoice ${invoiceName} URL: ${url}`);
         return { name: invoiceName || `Invoice-${index + 1}`, url };
-      })
+      }),
     );
 
     return invoiceUrls;
@@ -198,11 +241,15 @@ export class AmzScScraper {
 
   private async getTextOrDefault(resource: Locator | Page, selector: string, defaultValue: string): Promise<string> {
     try {
-      const result = await resource.locator(selector).textContent({ timeout: 500 });
-      if (!result || result.trim().length === 0) {
+      const result = await resource.locator(selector).textContent({ timeout: 200 });
+      if (!result) {
         return defaultValue;
       }
-      return result;
+      const trimmed = result.trim();
+      if (trimmed.length === 0) {
+        return defaultValue;
+      }
+      return trimmed;
     } catch {
       return defaultValue;
     }

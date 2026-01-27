@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import type { AmzScConfig } from "./amz-sc-config.class";
+import type { AmzScOrder } from "./model";
 import { AmzScYearOrders } from "./model";
 
 /**
@@ -17,10 +18,10 @@ export class AmzScFilePersistence {
   /**
    * Generates the file path for storing order IDs for a specific year.
    * @param year - The year for which to generate the file path.
-   * @returns The absolute file path in the format `{downloadDir}/{year}/order-ids-{year}.json`.
+   * @returns The absolute file path in the format `{downloadDir}/{year}-order-ids.json`.
    */
   getYearOrderIdsFilePath(year: number): string {
-    return `${this.config.downloadDir}/${year}/order-ids-${year}.json`;
+    return `${this.config.downloadDir}/${year}-order-ids.json`;
   }
 
   /**
@@ -57,5 +58,78 @@ export class AmzScFilePersistence {
       // Create directory recursively
       mkdirSync(dirPath, { recursive: true });
     }
+  }
+
+  // ============================================================
+  // Order Details Persistence
+  // ============================================================
+
+  /**
+   * Generates the file path for storing order details for a specific year.
+   * @param year - The year for which to generate the file path.
+   * @returns The absolute file path in the format `{downloadDir}/{year}-order-details.json`.
+   */
+  getYearOrderDetailsFilePath(year: number): string {
+    return `${this.config.downloadDir}/${year}-order-details.json`;
+  }
+
+  /**
+   * Reads previously saved order details for a specific year from disk.
+   * Used to resume order detail collection across sessions.
+   * @param year - The year for which to read order details.
+   * @returns Array of order details if the file exists, or `null` if no saved data is found.
+   */
+  readYearOrderDetailsFromFile(year: number): AmzScOrder[] | null {
+    const filePath = this.getYearOrderDetailsFilePath(year);
+    if (!existsSync(filePath)) {
+      return null;
+    }
+    const data = JSON.parse(readFileSync(filePath, "utf-8"));
+    return data as AmzScOrder[];
+  }
+
+  /**
+   * Writes order details for a specific year to disk as JSON.
+   * Called after each order is scraped to save progress incrementally.
+   * @param year - The year for which to write order details.
+   * @param orders - Array of order details to persist.
+   */
+  writeYearOrderDetailsToFile(year: number, orders: AmzScOrder[]): void {
+    const filePath = this.getYearOrderDetailsFilePath(year);
+    this.ensureDirectoryExistsForPath(filePath);
+    const data = JSON.stringify(orders, null, 2);
+    writeFileSync(filePath, data, "utf-8");
+    console.log(`Wrote ${orders.length} order details for year ${year} to file: ${filePath}`);
+  }
+
+  /**
+   * Appends a single order to the existing order details file.
+   * Creates the file if it doesn't exist.
+   * @param year - The year for which to append the order.
+   * @param order - The order to append.
+   */
+  appendOrderDetailToFile(year: number, order: AmzScOrder): void {
+    const existingOrders = this.readYearOrderDetailsFromFile(year) ?? [];
+
+    // Avoid duplicates by checking if order already exists
+    const orderExists = existingOrders.some((o) => o.id === order.id);
+    if (orderExists) {
+      console.log(`Order ${order.id} already exists in file, skipping append.`);
+      return;
+    }
+
+    existingOrders.push(order);
+    this.writeYearOrderDetailsToFile(year, existingOrders);
+  }
+
+  /**
+   * Gets the set of order IDs that have already been scraped for details.
+   * Useful for resuming order detail collection.
+   * @param year - The year to check.
+   * @returns Set of order IDs that have been scraped.
+   */
+  getScrapedOrderIds(year: number): Set<string> {
+    const orders = this.readYearOrderDetailsFromFile(year) ?? [];
+    return new Set(orders.map((o) => o.id));
   }
 }
