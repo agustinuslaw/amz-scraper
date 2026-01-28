@@ -1,4 +1,3 @@
-import type { AmzScLink } from "./amz-sc-link.interface";
 import type { AmzScOrderItem } from "./amz-sc-order-item.class";
 
 /**
@@ -12,6 +11,7 @@ export interface AmzScOrder {
   readonly date: string;
   /** Total order amount including tax and shipping. */
   readonly totalAmount: string;
+  readonly refundAmount?: string | undefined;
   /** Recipient name for shipping. */
   readonly shippingName: string;
   /** Delivery address. */
