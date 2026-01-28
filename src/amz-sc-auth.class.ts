@@ -1,3 +1,4 @@
+import type { Page } from "playwright";
 import type { AmzScBrowser } from "./amz-sc-browser.class";
 import type { AmzScConfig } from "./amz-sc-config.class";
 import { waitForEnter } from "./util/amz-sc-process.util";
@@ -42,11 +43,17 @@ export class AmzScAuth {
    */
   async isLoggedIn(): Promise<boolean> {
     try {
-      // Navigate to
-      await this.browser.mainPage.goto("https://www.amazon.de", {
+      // Navigate to user preference
+      const page: Page = this.browser.mainPage;
+      await page.goto("https://www.amazon.de/customer-preferences/edit", {
         waitUntil: "domcontentloaded",
         timeout: 10000,
       });
+
+      // pick english
+      await page.locator("input[value='en_GB']").check({ timeout: 2000 });
+      // save preference
+      await page.locator("input[type='submit'].a-button-input").click({ timeout: 2000 });
 
       // Check if the account link shows a name (indicates logged in)
       const accountElement = await this.browser.mainPage.locator("#nav-link-accountList-nav-line-1");
@@ -57,7 +64,7 @@ export class AmzScAuth {
         console.log("Account element has no text content");
         return false;
       }
-      const signInRegex = /anmelden|sign in/i;
+      const signInRegex = /sign in/i;
       return !signInRegex.test(text);
     } catch (error) {
       console.error("Error checking login status:", error);
