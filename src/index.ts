@@ -21,6 +21,7 @@ async function main(): Promise<void> {
   const filePersistence = new AmzScFilePersistence(config);
   const scraper: AmzScScraper = new AmzScScraper(config, browser, filePersistence);
   await scraper.run();
+  // await scraper.debugPrintOrderDetail("028-6907688-0353919");
 
   // Wait for user to press Enter
   console.log("Press Enter here to stop the application and close the browser");

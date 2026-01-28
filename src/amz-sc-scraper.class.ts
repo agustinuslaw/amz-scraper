@@ -1,10 +1,11 @@
+import { error } from "node:console";
 import { existsSync } from "node:fs";
 import type { Locator, Page, Response } from "playwright";
 import type { AmzScBrowser } from "./amz-sc-browser.class";
 import type { AmzScConfig } from "./amz-sc-config.class";
 import type { AmzScFilePersistence } from "./amz-sc-file-persistence.class";
 import { type AmzScLink, type AmzScOrder, type AmzScOrderItem, AmzScYearOrderIds } from "./model";
-import { appendUniqueOrder as appendOrder } from "./util/amz-sc-model.util";
+import { appendUniqueOrder as appendOrder, parseDEDateToISO } from "./util/amz-sc-model.util";
 import { randomSleep } from "./util/amz-sc-process.util";
 
 const RADIX_DECIMAL: number = 10;
@@ -189,58 +190,50 @@ export class AmzScScraper {
 
     const orderItems: AmzScOrderItem[] = [];
     const orderDetails: Locator = page.locator("#orderDetails");
-
     const paymentInstrument = await this.getTextOrEmpty(orderDetails, "[data-testid='payment-instrument']");
     const orderDate = await this.getTextOrEmpty(orderDetails, "[data-component='orderDate']");
-    const totalAmount = await this.getTextOrEmpty(orderDetails, "[data-component='chargeSummary'] li:last-child .od-line-item-row-content");
-
+    const lastAmount = await page
+      .locator("[data-component='chargeSummary'] li:last-child  div.od-line-item-row-content span")
+      .innerText({ timeout: 500 })
+      .catch(() => "");
+    const totalAmount =
+      (await page
+        .locator("[data-component='chargeSummary'] li")
+        .filter({
+          has: page.locator("div", { hasText: "Grand Total:" }),
+        })
+        .locator("div.od-line-item-row-content")
+        .innerText({ timeout: 500 })
+        .catch(() => lastAmount)) || lastAmount;
+    const refundAmount = await page
+      .locator("[data-component='chargeSummary'] li")
+      .filter({
+        has: page.locator("div", { hasText: "Refund Total" }),
+      })
+      .locator("div.od-line-item-row-content")
+      .innerText({ timeout: 300 })
+      .catch(() => undefined);
     const shippingName = await this.getTextOrEmpty(orderDetails, "[data-component='shippingAddress'] li:nth-child(1)");
     const shippingAddress = (await this.getTextOrEmpty(orderDetails, "[data-component='shippingAddress'] li:nth-child(2)")).replaceAll(
       "\n",
       ", "
     );
-
     const orderItemGrids: Locator[] = await orderDetails
       .locator("[data-component='shipments'] .a-fixed-left-grid")
       .all()
       .catch(() => []);
-    for (const itemGrid of orderItemGrids) {
-      const itemTitleLink: Locator = await itemGrid.locator("[data-component='itemTitle'] a");
-      const itemTitle = (await itemTitleLink?.textContent())?.trim() ?? "";
-      const itemHref = await itemTitleLink?.getAttribute("href").catch(() => "");
-      const itemAsin = this.getRegexGroupOrEmpty(itemHref, /\/dp\/([A-Z0-9]+)/, 1);
-      const merchant = await this.getTextOrEmpty(itemGrid, "[data-component='orderedMerchant'] a").catch(() => "");
-      const merchantHref = await itemGrid
-        .locator("[data-component='orderedMerchant'] a")
-        .getAttribute("href", { timeout: 500 })
-        .catch(() => "");
-      const merchantId = this.getRegexGroupOrEmpty(merchantHref, /seller=([A-Z0-9]+)/, 1);
-      const quantity = await this.getTextOrDefault(itemGrid, "[data-component='quantity']", "1");
-      const unitPrice = await this.getTextOrEmpty(itemGrid, "[data-component='unitPrice'] .a-offscreen");
-
-      const orderItem: AmzScOrderItem = {
-        orderId,
-        title: itemTitle,
-        asin: itemAsin,
-        merchant,
-        merchantId,
-        quantity: this.extractInt(quantity),
-        unitPrice,
-      };
-
-      orderItems.push(orderItem);
-
-      console.log(
-        `ASIN: ${itemAsin}, Merchant: ${merchant}, Qty: ${quantity},  Price: ${unitPrice}, Title: ${itemTitle?.substring(0, 50)}...`
-      );
-    }
 
     const detailsUrl = this.getOrderDetailsUrl(orderId);
+    for (const itemGrid of orderItemGrids) {
+      const orderItem: AmzScOrderItem = await this.extractOrderItem(orderId, itemGrid);
+      orderItems.push(orderItem);
+    }
 
     const orderDetail: AmzScOrder = {
       id: orderId,
       date: orderDate,
       totalAmount,
+      refundAmount,
       shippingName,
       shippingAddress,
       paymentInstrument,
@@ -270,44 +263,84 @@ export class AmzScScraper {
     return urls;
   }
 
+  async extractOrderItem(orderId: string, itemGrid: Locator): Promise<AmzScOrderItem> {
+    const itemTitleLink: Locator = await itemGrid.locator("[data-component='itemTitle'] a");
+    const itemTitle = (await itemTitleLink?.textContent())?.trim() ?? "";
+    const itemHref = await itemTitleLink?.getAttribute("href").catch(() => "");
+    const itemAsin = this.getRegexGroupOrEmpty(itemHref, /\/dp\/([A-Z0-9]+)/, 1);
+    const merchant = await this.getTextOrEmpty(itemGrid, "[data-component='orderedMerchant'] a").catch(() => "");
+    const merchantHref = await itemGrid
+      .locator("[data-component='orderedMerchant'] a")
+      .getAttribute("href", { timeout: 500 })
+      .catch(() => "");
+    const merchantId = this.getRegexGroupOrEmpty(merchantHref, /seller=([A-Z0-9]+)/, 1);
+    const quantity = await this.getTextOrDefault(itemGrid, "[data-component='quantity']", "1");
+    const unitPrice = await this.getTextOrEmpty(itemGrid, "[data-component='unitPrice'] .a-offscreen");
+
+    const orderItem: AmzScOrderItem = {
+      orderId,
+      title: itemTitle,
+      asin: itemAsin,
+      merchant,
+      merchantId,
+      quantity: this.extractInt(quantity),
+      unitPrice,
+    };
+    console.log(
+      `ASIN: ${itemAsin}, Merchant: ${merchant}, Qty: ${quantity},  Price: ${unitPrice}, Title: ${itemTitle?.substring(0, 50)}...`
+    );
+    return orderItem;
+  }
+
   async downloadInvoices(page: Page, order: AmzScOrder) {
-    await page.waitForSelector("[href]", { timeout: 2000 });
+    await page.waitForSelector("[href]", { timeout: 10000 });
 
     const pdfLinks = await page.locator("[href$=pdf]").all();
 
     const orderId = order.id;
 
-    if (!order.date) {
+    if (!order.date || order.date.length === 0) {
       console.log(`Order ${order.id} has no date, download invoice skipped`);
       return;
     }
-    const date = new Date(order.date);
-    const year = date.getFullYear();
 
-    const isoString = date.toISOString();
-    const isoDate = isoString.split("T")[0];
+    const isoDate = parseDEDateToISO(order.date);
+    if (!isoDate) {
+      throw new Error(`Failed to parse Date ${order.date}`);
+    }
+    const date = new Date(isoDate);
+    const year = date.getFullYear();
 
     const cost = order.totalAmount;
 
     // sequential in between download operations
     for (const link of pdfLinks) {
-      await randomSleep(100, 600);
       const name = (await link.textContent({ timeout: 200 })) ?? "Invoice";
       const nameFormatted = name.toLowerCase().replaceAll(" ", "_");
-      const filePath = `${this.config.downloadDir}/${year}/${isoDate}_amazon_${orderId}_${nameFormatted}_${cost}.pdf`;
+      const fileName = `${isoDate}_amazon_${orderId}_${nameFormatted}_${cost}.pdf`;
+      const filePath = `${this.config.downloadDir}/${year}/${fileName}`;
       if (existsSync(filePath)) {
         console.log(`Skip download existing file: ${filePath}`);
         continue;
       }
 
+      await randomSleep(100, 600);
       const downloadPromise = page.waitForEvent("download");
       await link.click({
         button: "left",
         modifiers: ["Alt"],
       });
       const download = await downloadPromise;
+      console.log(`Download ${fileName}`);
       await download.saveAs(filePath);
     }
+  }
+
+  async debugPrintOrderDetail(orderId: string) {
+    const page = this.browser.mainPage;
+    this.gotoOrderSummaryPrintPage(page, orderId);
+    const order = await this.getOrderDetails(page, orderId);
+    console.log(JSON.stringify(order, null, 2));
   }
 
   private getRegexGroupOrEmpty(text: string | null | undefined, regex: RegExp, groupIndex = 1): string {
